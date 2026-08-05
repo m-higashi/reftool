@@ -254,6 +254,22 @@ def _startup() -> None:
 # ==========================================================================
 # 一覧・検索
 # ==========================================================================
+# 「重複」= 実体のあるファイル(status='ok')が、同じ内容で2件以上ある状態。
+# ⚠️定義はここ1か所に置き、絞り込み・件数・詳細パネルの3か所から必ずこれを使うこと。
+#   欠落レコードを数に入れてはいけない。消したファイルの記録が「重複」として残り続け、
+#   移動しただけの場合も「移動候補」と二重に出る(2026-08-05に不揃いだったのを修正)。
+DUP_GROUP_SQL = (
+    "SELECT content_hash FROM files "
+    "WHERE content_hash IS NOT NULL AND status = 'ok' "
+    "GROUP BY content_hash HAVING COUNT(*) > 1"
+)
+# 同じ内容が何か所にあるか(1なら重複なし)。相関サブクエリだが content_hash は索引付き
+DUP_COUNT_SQL = (
+    "(SELECT COUNT(*) FROM files AS dup "
+    " WHERE dup.content_hash = files.content_hash AND dup.status = 'ok')"
+)
+
+
 def _short_query_tokens(q: str) -> bool:
     return any(len(t) < 3 for t in q.split())
 
@@ -302,10 +318,7 @@ def _build_filter(
     if status == "new":
         where.append("is_new = 1")
     elif status == "duplicate":
-        where.append(
-            "content_hash IN (SELECT content_hash FROM files "
-            "WHERE content_hash IS NOT NULL GROUP BY content_hash HAVING COUNT(*)>1)"
-        )
+        where.append(f"files.status = 'ok' AND files.content_hash IN ({DUP_GROUP_SQL})")
     elif status in ("missing", "unreadable"):
         where.append("status = ?")
         params.append(status)
@@ -339,6 +352,10 @@ def list_files(
             "new": "is_new DESC, last_seen_at DESC",
             "folder": "files.folder, files.filename",
         }.get(sort, "files.folder, files.filename")
+        # 重複だけを見ているときは、同じ内容のものが必ず隣り合うようにする
+        # (選んだ並び順はグループの中で効かせる)
+        if status == "duplicate":
+            order = "files.content_hash, " + order
 
         total = conn.execute(
             f"SELECT COUNT(*) AS c FROM files{joins}{where_sql}", params
@@ -355,7 +372,8 @@ def list_files(
                    {db.EFF_DOI} AS doi, {db.EFF_CATEGORY} AS category,
                    files.favorite, files.read_status, files.memo1, files.memo2,
                    files.title_auto, files.title_user, files.journal_auto, files.journal_user,
-                   files.doi_auto, files.doi_user, files.category_auto, files.category_user
+                   files.doi_auto, files.doi_user, files.category_auto, files.category_user,
+                   {DUP_COUNT_SQL} AS dup_count
                 FROM files{joins}{where_sql}
                 ORDER BY {order} LIMIT ? OFFSET ?""",
             params + [per_page, offset],
@@ -367,9 +385,16 @@ def list_files(
             d["memo1_head"] = (d.pop("memo1") or "").strip().replace("\n", " ")[:80]
             d["memo2_head"] = (d.pop("memo2") or "").strip().replace("\n", " ")[:80]
             d["title_missing"] = not (d["title"] or "").strip()
+            # 1か所しかないものは「重複なし」。画面に出すのは2以上のときだけ
+            d["dup_count"] = d["dup_count"] if (d["dup_count"] or 0) > 1 else 0
             items.append(d)
 
-        return {"total": total, "page": page, "per_page": per_page, "items": items}
+        out = {"total": total, "page": page, "per_page": per_page, "items": items}
+        if status == "duplicate":
+            out["dup_groups"] = conn.execute(
+                f"SELECT COUNT(*) AS c FROM ({DUP_GROUP_SQL})"
+            ).fetchone()["c"]
+        return out
     finally:
         conn.close()
 
@@ -390,12 +415,16 @@ def get_file(file_id: int):
         d["move_candidates"] = (
             scanner_mod.find_move_candidates(conn, file_id) if d["status"] == "missing" else []
         )
-        # 重複(同一ハッシュの別パス)
+        # 重複(同じ内容が置かれている別の場所)。実体のあるもの同士だけを出す。
+        # ⚠️両側で status を見ること。片方でも欠けていると、消したファイルの記録が
+        #   「重複」として残り、移動しただけの場合は上の move_candidates と
+        #   同じファイルを二重に出してしまう(2026-08-05に実測して修正)
         d["duplicates"] = []
-        if d["content_hash"]:
+        if d["content_hash"] and d["status"] == "ok":
             d["duplicates"] = [
                 dict(x) for x in conn.execute(
-                    "SELECT id, rel_path FROM files WHERE content_hash=? AND id<>?",
+                    "SELECT id, rel_path FROM files "
+                    "WHERE content_hash=? AND id<>? AND status='ok'",
                     (d["content_hash"], file_id),
                 ).fetchall()
             ]
@@ -767,32 +796,6 @@ def start_scan():
 @app.get("/api/scan/status")
 def scan_status():
     return scan_state.snapshot()
-
-
-# ==========================================================================
-# 重複
-# ==========================================================================
-@app.get("/api/duplicates")
-def duplicates():
-    conn = get_conn()
-    try:
-        groups = conn.execute(
-            """SELECT content_hash, COUNT(*) AS n FROM files
-               WHERE content_hash IS NOT NULL
-               GROUP BY content_hash HAVING n>1 ORDER BY n DESC"""
-        ).fetchall()
-        out = []
-        for g in groups:
-            members = conn.execute(
-                f"SELECT id, rel_path, {db.EFF_TITLE} AS title, size, status "
-                "FROM files WHERE content_hash=? ORDER BY rel_path",
-                (g["content_hash"],),
-            ).fetchall()
-            out.append({"hash": g["content_hash"], "count": g["n"],
-                        "members": [dict(m) for m in members]})
-        return {"groups": out}
-    finally:
-        conn.close()
 
 
 # ==========================================================================

@@ -233,7 +233,7 @@ async function loadList() {
   data.items.forEach((it) => tb.appendChild(renderRow(it)));
   CURSOR = -1;
   renderEmpty(data.total);
-  renderPager(data.total, data.page, data.per_page);
+  renderPager(data.total, data.page, data.per_page, data.dup_groups);
 }
 
 // 0件のとき: 初回起動(DBが空)なら次にすることを案内し、絞り込みの結果なら普通の空表示にする
@@ -282,7 +282,15 @@ function renderRow(it) {
   } else {
     title.appendChild(el("div", "title-main", it.title));
   }
-  title.appendChild(el("div", "title-file", it.filename));
+  const fileline = el("div", "title-file", it.filename);
+  // 同じ中身が他の場所にもある印。狭い列に置くと崩れるので、幅のあるタイトル列に出す
+  if (it.dup_count > 1) {
+    const dup = el("span", "badge dup", `同一${it.dup_count}か所`);
+    dup.title = "まったく同じ内容のファイルが、この件数の場所に置かれています";
+    fileline.appendChild(document.createTextNode(" "));
+    fileline.appendChild(dup);
+  }
+  title.appendChild(fileline);
   tr.appendChild(title);
 
   const cat = el("td", "c-cat");
@@ -297,10 +305,11 @@ function renderRow(it) {
   return tr;
 }
 
-function renderPager(total, page, per) {
+function renderPager(total, page, per, dupGroups) {
   const pages = Math.max(1, Math.ceil(total / per));
   const p = $("#pager"); p.innerHTML = "";
-  const info = el("span", "muted", `${total}件  ${page}/${pages}ページ`);
+  const groups = dupGroups ? `  (${dupGroups}種類の中身)` : "";
+  const info = el("span", "muted", `${total}件  ${page}/${pages}ページ${groups}`);
   const prev = el("button", null, "‹ 前へ"); prev.disabled = page <= 1;
   const next = el("button", null, "次へ ›"); next.disabled = page >= pages;
   prev.onclick = () => { PAGE = page - 1; loadList(); };

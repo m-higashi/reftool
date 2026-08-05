@@ -219,6 +219,8 @@ tbody tr.cursor td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 }
 .badge.new { background: var(--new); }
 .badge.warn { background: var(--warn); }
+/* 重複は異常ではないので、警告色にせず控えめに出す */
+.badge.dup { background: var(--chip); color: var(--chip-fg); font-weight: 600; }
 .chip {
   display: inline-block; background: var(--chip); color: var(--chip-fg);
   border-radius: 10px; padding: 1px 8px; font-size: 12px;
