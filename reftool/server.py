@@ -765,29 +765,6 @@ def duplicates():
 # ==========================================================================
 # 設定・統計・バックアップ
 # ==========================================================================
-@app.post("/api/files/{file_id}/toc")
-def read_toc(file_id: int):
-    """目次の候補を返すだけ。DBには書かない(採用するかは画面で利用者が決める)。"""
-    conn = get_conn()
-    try:
-        r = conn.execute("SELECT rel_path, ext FROM files WHERE id=?", (file_id,)).fetchone()
-        if not r:
-            raise HTTPException(404, "not found")
-        if r["ext"] != "pdf":
-            return {"ok": False, "reason": "目次を読み取れるのはPDFだけです"}
-        path = _safe_under_root(r["rel_path"])
-        if not path.exists():
-            return {"ok": False, "reason": "ファイルが見つかりません"}
-        res = meta_mod.extract_toc(path)
-        if not res["text"]:
-            return {"ok": False,
-                    "reason": "目次らしい部分が見つかりませんでした"
-                              "(紙を画像として取り込んだPDFからは読み取れません)"}
-        return {"ok": True, **res}
-    finally:
-        conn.close()
-
-
 @app.get("/api/config")
 def get_config():
     conn = get_conn()
