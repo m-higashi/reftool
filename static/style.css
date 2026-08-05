@@ -197,7 +197,14 @@ tbody tr:hover { background: var(--row-hover); }
 tbody tr.selected { background: var(--row-selected); }
 tbody tr.cursor td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .c-mark { width: 74px; }
-.c-fav { width: 26px; text-align: center; }
+/* ★の列は幅が狭く、tdの左右padding(8px)を引くと中身に10pxしか残らない。
+   ☆の字幅はフォントによって変わり(macOSの .SF NS では約14px)、はみ出すと
+   text-overflow の「…」が描かれて点が増えたように見える。
+   十分な幅を取り、この列だけ省略記号を切っておく。 */
+.c-fav {
+  width: 34px; text-align: center;
+  padding-left: 2px; padding-right: 2px; text-overflow: clip;
+}
 .c-read { width: 78px; }
 .c-cat { width: 100px; }
 .c-journal { width: 180px; }
