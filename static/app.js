@@ -422,7 +422,9 @@ async function openDetail(id) {
   p.appendChild(editField("雑誌名", "journal_user", d.journal_user, d.journal_auto, "input", editors));
   p.appendChild(editField("DOI", "doi_user", d.doi_user, d.doi_auto, "input", editors));
   p.appendChild(editField("URL", "url_user", d.url_user, null, "input", editors));
-  p.appendChild(editField(CFG.memo2_label, "memo2", d.memo2, null, "textarea", editors));
+  const memo2Field = editField(CFG.memo2_label, "memo2", d.memo2, null, "textarea", editors);
+  if (d.ext === "pdf") memo2Field.appendChild(tocButton(id, memo2Field.querySelector("textarea")));
+  p.appendChild(memo2Field);
 
   // メモ欄の下に保存/閉じるボタン(＋未保存の表示)
   const botBtns = el("div", "detail-actions");
@@ -489,6 +491,52 @@ function editField(label, key, userVal, autoVal, kind, editors) {
   }
   editors.push({ key, input, orig: userVal || "" });
   return f;
+}
+
+// 目次の読み取り。欄に入れるだけで保存はしない(「未保存の変更があります」の状態になる)
+function tocButton(id, ta) {
+  const wrap = el("div", "row-btns");
+  const b = el("button", null, "目次を読み取る");
+  b.title = "PDFのしおり、または巻頭・巻末の目次ページから読み取って、この欄に入れます。"
+    + "保存はされないので、中身を確かめてから「保存して閉じる」を押してください。"
+    + "紙を画像として取り込んだPDFからは読み取れません";
+  b.onclick = async () => {
+    b.disabled = true;
+    const label = b.textContent;
+    b.textContent = "読み取り中…";
+    try {
+      const r = await api(`/api/files/${id}/toc`, { method: "POST" });
+      if (!r.ok) { toast(r.reason); return; }
+      const cur = ta.value.trim();
+      if (cur && cur !== r.text.trim()) {
+        showPlan({
+          title: "この欄には既に書かれています",
+          lines: [`読み取れた行数: ${r.text.split("\n").length}行` +
+                  (r.source === "bookmark" ? "(PDFのしおりから)" : `(${r.page}ページ目から)`),
+                  "いま書かれている内容をどうするか選んでください。どちらを選んでも、保存するまでは元に戻せます。"],
+          actions: [
+            { label: "置き換える", cls: "primary", run: () => applyToc(ta, r, false) },
+            { label: "下に書き足す", run: () => applyToc(ta, r, true) },
+          ],
+        });
+        return;
+      }
+      applyToc(ta, r, false);
+    } catch (e) {
+      toast("失敗: " + e.message);
+    } finally {
+      b.disabled = false; b.textContent = label;
+    }
+  };
+  wrap.appendChild(b);
+  return wrap;
+}
+
+function applyToc(ta, r, append) {
+  ta.value = append && ta.value.trim() ? ta.value.replace(/\s+$/, "") + "\n\n" + r.text : r.text;
+  ta.dispatchEvent(new Event("input", { bubbles: true }));   // 未保存の表示を出す
+  toast((r.source === "bookmark" ? "しおりから" : `${r.page}ページ目から`)
+        + `${r.text.split("\n").length}行 読み取りました(まだ保存されていません)`);
 }
 
 function categoryField(d, editors) {
