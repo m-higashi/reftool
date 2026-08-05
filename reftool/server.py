@@ -39,7 +39,7 @@ class GzipTextMiddleware:
 
     - Content-Type が text/* や application/json 等のときだけ圧縮する。
     - PDF/画像/動画(FileResponse のストリーム)はバッファせずそのまま流す
-      (教科書フォルダには 23GB 分のファイルがあるため、ここは絶対にバッファしない)。
+      (蔵書は数十GBになりうるので、ファイル本体は絶対にメモリへ載せない)。
     - 既に Content-Encoding が付いているレスポンスは触らない。
     """
 
@@ -709,7 +709,7 @@ def _safe_under_root(rel_path: str):
 
     - resolve() で `..`・シンボリックリンクを解決してから判定(単純な startswith より堅い)。
     - 比較は normcase(Windowsの大文字小文字同一視)+ NFC 正規化(macOS由来のNFD差)を通す。
-    - commonpath で「接頭辞が偶然一致する隣接ディレクトリ」(例 教科書 / 教科書bak)を弾く。
+    - commonpath で「接頭辞が偶然一致する隣接ディレクトリ」(例 文献 / 文献bak)を弾く。
     ファイル解決自体は元の rel_path で行う(実ファイル名の正規化形を壊さない)。
     """
     path = resolve_rel(rel_path).resolve()  # NFC/NFDの表記ゆれを吸収してから安全判定
