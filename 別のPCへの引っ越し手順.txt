@@ -55,8 +55,11 @@ _reftool\library.db にすべて入っており、フォルダを丸ごとコピ
 IPの書き換えは不要です。ただし新PC側で下記の準備が必要です。
 
   ・新PCにも Tailscale をインストールしてログインする
-  ・アクセスURLは  http://（新PCのTailscale IP）:8585/  になります
-    （新PCのTailscale IPは Tailscale アプリで確認できます）
+    （ https://tailscale.com/  個人利用の無料枠があります）。
+    自分の端末どうしだけをつなぐVPNで、社内LANやインターネットには
+    公開されません。
+  ・アクセスURLは  http://100.x.y.z:8585  になります
+    （100.x.y.z は新PCの Tailscale IP。Tailscale アプリで確認できます）
 
 【つながらない時】
   Windowsのファイアウォールが python をブロックしていることがあります。
