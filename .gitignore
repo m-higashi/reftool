@@ -16,6 +16,7 @@ MakeMyBackup/
 CLAUDE.md
 make_mac_zip.py
 make_repo.py
+make_social.py
 
 # OS が置いていくもの
 .DS_Store
