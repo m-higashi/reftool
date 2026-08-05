@@ -278,7 +278,8 @@ def extract_pdf_outline(path: Path) -> list[tuple[int, str]]:
 #   ⚠️DBには書かない。候補を返すだけで、採用するかは利用者が決める。
 #   OCRは行わない(画像として取り込まれたPDFからは読めない)。
 # --------------------------------------------------------------------------
-_TOC_HEAD = re.compile(r"(目\s*次|CONTENTS|Contents)")
+# 目次ページの見出し。誌によって「目次」「CONTENTS」「INDEX」「索引」と揺れる
+_TOC_HEAD = re.compile(r"(目\s*次|索\s*引|\bCONTENTS?\b|\bINDEX\b|\bContents\b|\bIndex\b)")
 # 「見出し …… 12」のように、行末がページ番号で終わる行
 _TOC_LINE = re.compile(r"^(.{2,80}?)[\s.…・・_\-]{2,}(\d{1,4})$")
 _TRAIL_NUM = re.compile(r"[\s.…・・_\-]*\d{1,4}$")
@@ -294,6 +295,16 @@ _TOC_MIN_LINES = 5
 _WORDISH = re.compile(r"[ぁ-ヿ][ぁ-ヿ一-鿿]|[一-鿿]{2,}|[A-Za-z]{3,}")
 # 記号や飾りばかりの行
 _SYMBOLY = re.compile(r"^[^ぁ-ヿ一-鿿A-Za-z0-9]{3,}$")
+_WORDCHAR = re.compile(r"[ぁ-ヿ一-鿿A-Za-z0-9０-９ａ-ｚＡ-Ｚ]")
+
+
+def _too_symbolic(line: str) -> bool:
+    """記号の割合が高い行を落とす。壊れたOCR層は記号が混ざりやすい。"""
+    body = line.strip()
+    if not body:
+        return True
+    words = sum(1 for ch in body if _WORDCHAR.match(ch))
+    return words / len(body) < 0.6
 
 # しおりが「スライド 1」「_ページ_001」のような自動生成かどうか
 _GENERATED_OUTLINE = re.compile(
@@ -387,7 +398,7 @@ def extract_toc(path: Path, head_pages: int = 8, tail_pages: int = 6) -> dict:
     lines = []
     for raw in best_text.splitlines():
         ln = _clean_toc_line(raw)
-        if not ln or len(ln) < 2 or _TOC_HEAD.fullmatch(ln) or _SYMBOLY.match(ln):
+        if not ln or len(ln) < 2 or _TOC_HEAD.fullmatch(ln) or _too_symbolic(ln):
             continue
         lines.append(ln)
         if len(lines) >= _TOC_MAX_LINES:
