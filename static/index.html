@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文献リファレンス</title>
+  <script>
+    /* 表示テーマ: 既定は端末の設定に追従(auto)。利用者が選んだときだけ data-theme を立てる。
+       CSS の読み込み前に実行することで、切り替わる瞬間のちらつきを防ぐ。 */
+    try {
+      var _t = localStorage.getItem("reftool-theme");
+      if (_t === "light" || _t === "dark") document.documentElement.setAttribute("data-theme", _t);
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">📚 文献リファレンス</div>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="検索(タイトル・目次・ファイル名…)" autocomplete="off">
+      <select id="f-category"><option value="">カテゴリ:すべて</option></select>
+      <select id="f-status">
+        <option value="">状態:すべて</option>
+        <option value="new">NEW のみ</option>
+        <option value="attention">要対応のみ</option>
+        <option value="duplicate">重複のみ</option>
+        <option value="missing">欠落</option>
+        <option value="unreadable">読込不可</option>
+      </select>
+      <select id="f-folder"><option value="">フォルダ:すべて</option></select>
+      <select id="f-read">
+        <option value="">既読:すべて</option>
+        <option value="未読">未読</option>
+        <option value="読書中">読書中</option>
+        <option value="読了">読了</option>
+      </select>
+      <label class="chk"><input id="f-fav" type="checkbox"> ★のみ</label>
+      <select id="sort">
+        <option value="folder">並び:フォルダ順</option>
+        <option value="title">並び:タイトル順</option>
+        <option value="new">並び:新着順</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button id="btn-scan" title="フォルダを再走査し、追加・削除・移動されたファイルをDBに反映します">再スキャン</button>
+      <button id="btn-extract" title="メタデータ(タイトル/DOI等)を抽出">メタ抽出</button>
+      <div class="menu">
+        <button id="btn-maint" aria-haspopup="true" aria-expanded="false"
+                title="ときどき使う操作と、取り消せない操作">⚙ メンテナンス ▾</button>
+        <div id="maint-panel" class="menu-panel hidden">
+          <button id="btn-clearnew" title="現在の絞り込み条件に一致するNEW表示を一括解除します(絞り込みなしなら全件)">絞込NEW解除</button>
+          <button id="btn-backup" title="現在のデータベースのバックアップを作成します(30世代まで保持)">バックアップを作成</button>
+          <button id="btn-sync" title="メイン端末のバックアップDBに合わせて、この端末のファイル配置とメタ情報を同期します">他端末同期…</button>
+          <button id="btn-settings" title="カテゴリやラベルなどの設定を変更します">設定…</button>
+          <hr>
+          <button id="btn-delmissing" class="danger"
+                  title="現在の絞り込み条件に一致する『欠落』レコードをDBから削除します">欠落レコードを一括削除…</button>
+        </div>
+      </div>
+      <button id="btn-theme" title="表示テーマを切り替えます">🌗</button>
+      <span id="stats" class="stats"></span>
+    </div>
+    <div id="progress" class="progress hidden"></div>
+    <div id="plan" class="plan-box hidden"></div>
+  </header>
+
+  <main>
+    <section id="list-pane">
+      <div id="list-wrap">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th class="c-mark"></th>
+              <th class="c-fav">★</th>
+              <th class="c-title">タイトル / ファイル名</th>
+              <th class="c-cat">カテゴリ</th>
+              <th class="c-journal">雑誌</th>
+              <th class="c-folder">フォルダ</th>
+              <th class="c-read">既読</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div id="empty" class="empty hidden"></div>
+      </div>
+      <div id="pager" class="pager"></div>
+    </section>
+
+    <aside id="detail" class="detail hidden"></aside>
+  </main>
+
+  <div id="sync-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>🔁 他端末との同期</h2>
+        <button id="sync-close" class="close">✕ 閉じる</button>
+      </div>
+      <p class="muted small">
+        メイン端末で作ったバックアップDB(backupsフォルダにコピーしたもの)を選ぶと、
+        この端末のファイルを記録どおりの場所へ並べ替え、正式名称・メモ等のメタ情報も引き継ぎます。
+        まず「プレビュー」で移動内容を確認してから実行してください。
+      </p>
+      <div id="sync-backups" class="sync-backups"></div>
+      <div class="modal-actions">
+        <button id="sync-preview">プレビュー(確認のみ)</button>
+        <button id="sync-apply" class="primary" disabled>同期を実行</button>
+      </div>
+      <div id="sync-plan" class="sync-plan"></div>
+    </div>
+  </div>
+
+  <div id="set-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>⚙ 設定</h2>
+        <button id="set-close" class="close">✕ 閉じる</button>
+      </div>
+      <div id="set-body"></div>
+      <div class="modal-actions">
+        <button id="set-save" class="primary">保存する</button>
+        <button id="set-cancel">保存せずに閉じる</button>
+      </div>
+      <p class="auto-hint">保存すると設定ファイルが書き換わります(書き換える前に自動で控えを取ります)。</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

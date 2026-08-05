@@ -1,0 +1,21 @@
+# 実行時に作られるもの(利用者ごとの中身なので共有しない)
+.venv/
+__pycache__/
+*.pyc
+library.db
+library.db-wal
+library.db-shm
+backups/
+_sync_stage/
+
+# 手元の作業用
+dist/
+GitHub用/
+claude引き継ぎ/
+CLAUDE.md
+make_mac_zip.py
+make_repo.py
+
+# OS が置いていくもの
+.DS_Store
+Thumbs.db

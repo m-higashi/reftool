@@ -1,0 +1,321 @@
+/* ===========================================================================
+   配色は3層で決まる(下にあるものほど優先)。
+     1) :root                          … 既定(ライト)
+     2) @media (prefers-color-scheme)  … 端末の設定に自動追従
+     3) :root[data-theme="light|dark"] … 利用者が手で選んだ指定(必ず勝つ)
+   色は必ず変数を経由すること。要素ごとに .dark 用のセレクタを増やさない。
+   =========================================================================== */
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --line: #e2e5ea;
+  --text: #1f2430;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --new: #16a34a;
+  --warn: #dc2626;
+  --chip: #eef2ff;
+  --chip-fg: #3730a3;
+  --field-bg: #ffffff;
+  --btn-bg: #f3f4f6;
+  --btn-bg-hover: #e7ebf0;
+  --thead-bg: #fafbfc;
+  --row-hover: #f0f4ff;
+  --row-selected: #dbeafe;
+  --code-bg: #f3f4f6;
+  --notice-bg: #fff7ed;
+  --notice-line: #fdba74;
+  --notice-fg: #9a3412;
+  --untaken-fg: #b45309;
+  --star-off: #d1d5db;
+  --danger-fg: #b91c1c;
+  --danger-line: #dc9a9a;
+  --danger-bg: #ffffff;
+  --danger-bg-hover: #fde8e8;
+  --shadow: rgba(0, 0, 0, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1420;
+    --panel: #161c28;
+    --line: #2b3446;
+    --text: #e6e9ef;
+    --muted: #9aa4b4;
+    --accent: #3b82f6;
+    --new: #22c55e;
+    --warn: #ef4444;
+    --chip: #22304e;
+    --chip-fg: #c7d2fe;
+    --field-bg: #0f1420;
+    --btn-bg: #232c3d;
+    --btn-bg-hover: #2c384d;
+    --thead-bg: #121826;
+    --row-hover: #1b2333;
+    --row-selected: #243352;
+    --code-bg: #0f1420;
+    --notice-bg: #3a2a12;
+    --notice-line: #a4681f;
+    --notice-fg: #fcd9a8;
+    --untaken-fg: #fbbf24;
+    --star-off: #4b5563;
+    --danger-fg: #f2a3a3;
+    --danger-line: #7f3a3a;
+    --danger-bg: transparent;
+    --danger-bg-hover: #3a1f1f;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* 手動指定は端末設定より優先する(属性セレクタの方が詳細度が高い) */
+:root[data-theme="light"] {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --line: #e2e5ea;
+  --text: #1f2430;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --new: #16a34a;
+  --warn: #dc2626;
+  --chip: #eef2ff;
+  --chip-fg: #3730a3;
+  --field-bg: #ffffff;
+  --btn-bg: #f3f4f6;
+  --btn-bg-hover: #e7ebf0;
+  --thead-bg: #fafbfc;
+  --row-hover: #f0f4ff;
+  --row-selected: #dbeafe;
+  --code-bg: #f3f4f6;
+  --notice-bg: #fff7ed;
+  --notice-line: #fdba74;
+  --notice-fg: #9a3412;
+  --untaken-fg: #b45309;
+  --star-off: #d1d5db;
+  --danger-fg: #b91c1c;
+  --danger-line: #dc9a9a;
+  --danger-bg: #ffffff;
+  --danger-bg-hover: #fde8e8;
+  --shadow: rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f1420;
+  --panel: #161c28;
+  --line: #2b3446;
+  --text: #e6e9ef;
+  --muted: #9aa4b4;
+  --accent: #3b82f6;
+  --new: #22c55e;
+  --warn: #ef4444;
+  --chip: #22304e;
+  --chip-fg: #c7d2fe;
+  --field-bg: #0f1420;
+  --btn-bg: #232c3d;
+  --btn-bg-hover: #2c384d;
+  --thead-bg: #121826;
+  --row-hover: #1b2333;
+  --row-selected: #243352;
+  --code-bg: #0f1420;
+  --notice-bg: #3a2a12;
+  --notice-line: #a4681f;
+  --notice-fg: #fcd9a8;
+  --untaken-fg: #fbbf24;
+  --star-off: #4b5563;
+  --danger-fg: #f2a3a3;
+  --danger-line: #7f3a3a;
+  --danger-bg: transparent;
+  --danger-bg-hover: #3a1f1f;
+  --shadow: rgba(0, 0, 0, 0.5);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: system-ui, "Segoe UI", "Meiryo", sans-serif;
+  color: var(--text); background: var(--bg); font-size: 14px;
+}
+header {
+  position: sticky; top: 0; z-index: 20; background: var(--panel);
+  border-bottom: 1px solid var(--line); padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.brand { font-weight: 700; font-size: 16px; }
+.toolbar, .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.toolbar input[type=search] { flex: 1 1 240px; min-width: 160px; }
+input, select, button, textarea {
+  font: inherit; padding: 6px 8px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--field-bg); color: var(--text);
+}
+button { cursor: pointer; background: var(--btn-bg); }
+button:hover { background: var(--btn-bg-hover); }
+button:disabled { opacity: 0.45; cursor: default; pointer-events: none; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.danger { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-line); }
+button.danger:hover { background: var(--danger-bg-hover); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chk { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.stats { color: var(--muted); margin-left: auto; font-size: 12px; }
+.progress {
+  background: var(--notice-bg); border: 1px solid var(--notice-line); border-radius: 6px;
+  padding: 4px 8px; font-size: 12px; color: var(--notice-fg);
+}
+.hidden { display: none !important; }
+
+/* メンテナンス用のドロップダウン(破壊的操作は日常操作と分ける) */
+.menu { position: relative; display: inline-block; }
+.menu-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 220px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow); padding: 4px; display: flex; flex-direction: column;
+}
+.menu-panel button {
+  border: none; background: transparent; text-align: left; border-radius: 6px; padding: 7px 10px;
+}
+.menu-panel button:hover { background: var(--btn-bg-hover); }
+.menu-panel button.danger { background: transparent; }
+.menu-panel hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }
+
+main { display: flex; align-items: stretch; height: calc(100vh - 108px); }
+#list-pane { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+#list-wrap { flex: 1 1 auto; overflow: auto; }
+
+table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+thead th {
+  position: sticky; top: 0; background: var(--thead-bg); z-index: 1;
+  text-align: left; padding: 8px; border-bottom: 2px solid var(--line);
+  font-size: 12px; color: var(--muted); white-space: nowrap;
+}
+tbody td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* はみ出しは折り返さず … で省略 */
+.title-main, .title-file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--row-hover); }
+tbody tr.selected { background: var(--row-selected); }
+tbody tr.cursor td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.c-mark { width: 74px; }
+.c-fav { width: 26px; text-align: center; }
+.c-read { width: 78px; }
+.c-cat { width: 100px; }
+.c-journal { width: 180px; }
+.c-folder { width: 180px; }
+.title-main { font-weight: 600; }
+.title-file { color: var(--muted); font-size: 12px; }
+.muted { color: var(--muted); }
+.untaken { color: var(--untaken-fg); font-style: italic; }
+.badge {
+  display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px;
+  border-radius: 10px; color: #fff; margin-right: 3px;
+}
+.badge.new { background: var(--new); }
+.badge.warn { background: var(--warn); }
+.chip {
+  display: inline-block; background: var(--chip); color: var(--chip-fg);
+  border-radius: 10px; padding: 1px 8px; font-size: 12px;
+}
+.star { color: var(--star-off); }
+.star.on { color: #f59e0b; }
+.pager { padding: 6px 10px; display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--line); background: var(--panel); }
+
+/* 0件のときの案内(初回起動でまず何をすればよいか) */
+.empty { padding: 24px 16px; color: var(--muted); }
+.empty-guide { max-width: 520px; margin: 32px auto; padding: 20px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.empty-guide h3 { margin: 0 0 8px; font-size: 15px; color: var(--text); }
+.empty-guide ol { margin: 8px 0 12px; padding-left: 20px; line-height: 1.8; }
+.empty-guide .row-btns { margin-top: 12px; }
+
+/* detail */
+.detail {
+  flex: 0 0 420px; max-width: 46vw; border-left: 1px solid var(--line);
+  background: var(--panel); overflow: auto; padding: 14px;
+}
+.detail h2 { font-size: 15px; margin: 0 0 8px; word-break: break-word; }
+.detail-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.detail-header h2 { flex: 1 1 auto; margin: 0; }
+.detail-header .close { flex: 0 0 auto; white-space: nowrap; }
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.field input, .field select, .field textarea { width: 100%; }
+.field textarea { min-height: 90px; resize: vertical; font-family: inherit; }
+.auto-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.path { font-size: 12px; word-break: break-all; background: var(--code-bg); padding: 6px; border-radius: 6px; }
+.path-above-title { margin: 0 0 8px; }
+.detail-actions { display: flex; gap: 8px; margin: 4px 0 12px; align-items: center; }
+.detail-actions.bottom, .detail-actions:last-of-type { margin-top: 12px; }
+/* 未保存の変更があることを常に見えるところに出す */
+.dirty-mark { font-size: 12px; color: var(--notice-fg); background: var(--notice-bg);
+  border: 1px solid var(--notice-line); border-radius: 6px; padding: 2px 8px; }
+.section-t { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.cand, .dup {
+  display: flex; justify-content: space-between; gap: 8px; align-items: center;
+  padding: 5px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 4px; font-size: 12px;
+}
+.cand span, .dup span { word-break: break-all; }
+
+/* 「計画を見てから実行する」型の確認(confirm()の代わり) */
+.plan-box {
+  border: 1px solid var(--notice-line); background: var(--notice-bg); color: var(--notice-fg);
+  border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 13px;
+}
+.plan-box .plan-head { font-weight: 700; margin-bottom: 4px; }
+.plan-box ul { margin: 4px 0 8px; padding-left: 20px; line-height: 1.7; }
+.plan-box .row-btns { margin-bottom: 0; }
+
+.toast {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: #111827; color: #fff; padding: 8px 14px; border-radius: 8px;
+  z-index: 100; font-size: 13px;
+}
+
+/* モーダル(他端末同期・設定) */
+.modal {
+  position: fixed; inset: 0; z-index: 50; background: rgba(15, 20, 32, 0.45);
+  display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px;
+}
+.modal-box {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  width: min(760px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+  padding: 16px; box-shadow: 0 12px 32px var(--shadow);
+}
+.modal-header { display: flex; align-items: flex-start; gap: 8px; }
+.modal-header h2 { flex: 1 1 auto; margin: 0 0 6px; font-size: 16px; }
+.modal-header .close { flex: 0 0 auto; white-space: nowrap; }
+.modal .small { font-size: 12px; margin: 4px 0 10px; }
+.modal-actions { display: flex; gap: 8px; margin: 10px 0; }
+.sync-backups { display: flex; flex-direction: column; gap: 4px; }
+.sync-item {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.sync-item:hover { background: var(--row-hover); }
+.sync-item .muted { font-size: 11px; }
+.sync-summary { font-weight: 600; margin: 6px 0; }
+.sync-list {
+  max-height: 180px; overflow: auto; border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 8px; font-size: 12px; word-break: break-all;
+}
+.sync-list > div { padding: 1px 0; }
+
+/* 設定画面 */
+.set-group { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+.set-group:first-of-type { border-top: none; margin-top: 4px; }
+.set-group > h3 {
+  font-size: 13px; margin: 0 0 8px; padding-left: 8px;
+  border-left: 4px solid var(--accent);
+}
+.set-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; flex-wrap: wrap; }
+.set-row > label { flex: 0 0 150px; font-size: 13px; padding-top: 6px; }
+.set-row > .set-val { flex: 1 1 240px; min-width: 200px; }
+.set-row .auto-hint { margin-top: 4px; }
+.set-readonly { font-family: ui-monospace, "Consolas", monospace; font-size: 13px;
+  background: var(--code-bg); border-radius: 6px; padding: 6px 8px; display: inline-block; }
+
+@media (max-width: 760px) {
+  main { flex-direction: column; height: auto; }
+  #list-wrap { max-height: 55vh; }
+  .detail { flex: none; max-width: 100%; width: 100%; border-left: none; border-top: 1px solid var(--line); }
+  .c-journal, .c-folder { display: none; }
+  thead th.c-journal, thead th.c-folder { display: none; }
+  .set-row > label { flex: 1 1 100%; padding-top: 0; }
+}

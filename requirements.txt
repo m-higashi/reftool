@@ -1,0 +1,6 @@
+# 文献リファレンスツール 依存パッケージ
+# 初回の start.bat 実行時に自動インストールされます。
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pypdf>=5.0
+python-pptx>=1.0
