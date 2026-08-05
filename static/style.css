@@ -252,11 +252,17 @@ tbody tr.cursor td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .row-btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .path { font-size: 12px; word-break: break-all; background: var(--code-bg); padding: 6px; border-radius: 6px; }
 .path-above-title { margin: 0 0 8px; }
-.detail-actions { display: flex; gap: 8px; margin: 4px 0 12px; align-items: center; }
+/* パネルの幅が足りないときは、ボタンを縮めずに次の行へ送る。
+   縮めるとSafariで「保存して閉じ / る」のように語の途中で折り返される
+   (2026-08-05のmacOS実機で確認)。ボタン内の文字は折り返さない。 */
+.detail-actions { display: flex; gap: 8px; margin: 4px 0 12px; align-items: center; flex-wrap: wrap; }
+.detail-actions > * { flex: 0 0 auto; white-space: nowrap; }
 .detail-actions.bottom, .detail-actions:last-of-type { margin-top: 12px; }
+.row-btns > *, .row-btns button { white-space: nowrap; }
 /* 未保存の変更があることを常に見えるところに出す */
 .dirty-mark { font-size: 12px; color: var(--notice-fg); background: var(--notice-bg);
-  border: 1px solid var(--notice-line); border-radius: 6px; padding: 2px 8px; }
+  border: 1px solid var(--notice-line); border-radius: 6px; padding: 2px 8px;
+  white-space: nowrap; }
 .section-t { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 4px; border-top: 1px solid var(--line); padding-top: 8px; }
 .cand, .dup {
   display: flex; justify-content: space-between; gap: 8px; align-items: center;
