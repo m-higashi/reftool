@@ -12,6 +12,7 @@ _sync_stage/
 dist/
 GitHub用/
 claude引き継ぎ/
+MakeMyBackup/
 CLAUDE.md
 make_mac_zip.py
 make_repo.py
