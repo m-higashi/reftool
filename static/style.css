@@ -130,7 +130,11 @@
 
 * { box-sizing: border-box; }
 body {
-  margin: 0; font-family: system-ui, "Segoe UI", "Meiryo", sans-serif;
+  /* macOS では Hiragino / Windows では Yu Gothic UI・Meiryo を使う。
+     指定が Windows 前提だけだと、macOS で記号(★等)の描画が崩れることがある */
+  margin: 0;
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic UI", "Segoe UI", "Meiryo", "Noto Sans JP", sans-serif;
   color: var(--text); background: var(--bg); font-size: 14px;
 }
 header {

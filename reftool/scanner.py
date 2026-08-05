@@ -97,7 +97,7 @@ def scan(conn, cfg: Config, state: ScanState) -> None:
         existing = {
             r["rel_path"]: r
             for r in conn.execute(
-                "SELECT id, rel_path, size, mtime, content_hash, status FROM files"
+                "SELECT id, rel_path, filename, size, mtime, content_hash, status FROM files"
             ).fetchall()
         }
         seen_paths: set[str] = set()
@@ -136,7 +136,9 @@ def scan(conn, cfg: Config, state: ScanState) -> None:
                        (rel_path, filename, folder, ext, size, mtime, content_hash,
                         status, is_new, first_seen_at, last_seen_at, category_auto)
                        VALUES (?,?,?,?,?,?,?,?,1,?,?,?)""",
-                    (rel, path.name, folder, path.suffix.lower().lstrip("."),
+                    # ⚠️filename も rel と同じ NFC で入れる。path.name のまま入れると
+                    # macOS では NFD で索引され、日本語IMEで打った語(NFC)で検索できなくなる
+                    (rel, Path(rel).name, folder, path.suffix.lower().lstrip("."),
                      size, mtime, content_hash, status, now, now, category_auto),
                 )
                 fid = conn.execute("SELECT id FROM files WHERE rel_path=?", (rel,)).fetchone()["id"]
@@ -168,6 +170,10 @@ def scan(conn, cfg: Config, state: ScanState) -> None:
                         "UPDATE files SET last_seen_at=?, status='ok' WHERE id=?",
                         (now, prev["id"]),
                     )
+                # 以前のバージョンが NFD のまま入れた filename を直す(検索に効く)
+                if prev["filename"] != Path(rel).name:
+                    conn.execute("UPDATE files SET filename=? WHERE id=?",
+                                 (Path(rel).name, prev["id"]))
                 db.reindex_fts(conn, prev["id"])
 
             with state.lock:

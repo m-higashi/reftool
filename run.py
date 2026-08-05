@@ -14,7 +14,8 @@ def _local_ips() -> list[str]:
         hostname = socket.gethostname()
         for info in socket.getaddrinfo(hostname, None):
             ip = info[4][0]
-            if ":" not in ip:  # IPv4のみ
+            # IPv4のみ。127.x はこの下の行で別に案内するので重複させない
+            if ":" not in ip and not ip.startswith("127."):
                 ips.add(ip)
     except OSError:
         pass

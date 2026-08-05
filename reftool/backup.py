@@ -20,10 +20,25 @@ def _make_backup(dst: Path) -> None:
         target = sqlite3.connect(dst)
         try:
             src.backup(target)
+            # WALのままだと -wal / -shm が横に残る。1ファイルにまとめておくと
+            # 他端末へコピーするときも取り違えない
+            target.execute("PRAGMA journal_mode=DELETE")
         finally:
             target.close()
     finally:
         src.close()
+    _drop_sidecars(dst)
+
+
+def _drop_sidecars(path: Path) -> None:
+    """バックアップの横に残る -wal / -shm を消す。"""
+    for suffix in ("-wal", "-shm"):
+        side = path.with_name(path.name + suffix)
+        try:
+            if side.exists():
+                side.unlink()
+        except OSError:
+            pass
 
 
 def _prune(keep: int) -> None:
@@ -33,6 +48,14 @@ def _prune(keep: int) -> None:
             old.unlink()
         except OSError:
             pass
+        _drop_sidecars(old)
+    # 以前のバージョンが残した取り残しも掃除する
+    for side in list(BACKUP_DIR.glob("library-*.db-wal")) + list(BACKUP_DIR.glob("library-*.db-shm")):
+        if not side.with_name(side.name.rsplit("-", 1)[0]).exists():
+            try:
+                side.unlink()
+            except OSError:
+                pass
 
 
 def daily_backup(conn, cfg: Config) -> str | None:

@@ -124,7 +124,11 @@ async function loadConfig() {
 function renderStats() {
   const c = CFG.counts || {};
   const last = CFG.last_scan_at ? `最終スキャン ${CFG.last_scan_at}` : "未スキャン";
-  $("#stats").textContent = `全${c.total || 0}件 / NEW ${c.new || 0} / 要対応 ${c.attention || 0} ・ ${last}`;
+  const st = $("#stats");
+  st.textContent = `全${c.total || 0}件 / NEW ${c.new || 0} / 要対応 ${c.attention || 0} ・ ${last}`;
+  st.title = "NEW=前回のスキャンで新しく見つかったもの / "
+    + "要対応=ファイルが見つからない(欠落)か、開けなかった(読込不可)もの。"
+    + "状態の絞り込みで一覧できます。";
 }
 
 function bindEvents() {
@@ -176,6 +180,8 @@ function onKeyDown(ev) {
     if (!$("#set-modal").classList.contains("hidden")) { closeSettings(); return; }
     if (!$("#sync-modal").classList.contains("hidden")) { $("#sync-modal").classList.add("hidden"); return; }
     if (!$("#plan").classList.contains("hidden")) { hidePlan(); return; }
+    // 詳細パネル。未保存があるときは捨てずに選ばせる(閉じるボタンと同じ扱い)
+    if (!$("#detail").classList.contains("hidden") && DIRTY && DIRTY.close) { DIRTY.close(); return; }
     closeMaint();
     if (isTyping(ev.target)) ev.target.blur();
     return;
@@ -430,7 +436,8 @@ async function openDetail(id) {
 
   const refreshDirty = () => dirtyMark.classList.toggle("hidden", !isDirty());
   editors.forEach((e) => { e.input.addEventListener("input", refreshDirty); e.input.addEventListener("change", refreshDirty); });
-  DIRTY = { id, filename: d.filename, isDirty, save: () => saveAndClose(id, editors, () => {}) };
+  DIRTY = { id, filename: d.filename, isDirty, close: closeAsk,
+            save: () => saveAndClose(id, editors, () => {}) };
 
   // Crossref / 引用
   const tools = el("div", "row-btns");

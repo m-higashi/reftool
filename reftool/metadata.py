@@ -138,7 +138,10 @@ _JUNK_RE = re.compile(
     r")$",
     re.IGNORECASE,
 )
-_FILENAME_LIKE = re.compile(r"\.(?:indd|docx?|pptx?|pdf|ai|xlsx?)$", re.IGNORECASE)
+_FILENAME_LIKE = re.compile(
+    r"\.(?:indd|docx?|pptx?|xlsx?|pdf|ai|psd|epub|html?|txt|rtf|odt|ods|odp|pages|key|numbers)$",
+    re.IGNORECASE,
+)
 _BODY_OPENING = re.compile(r"(?:について(?:発表|お話)|を始めます|いたします)[。.]?$")
 
 

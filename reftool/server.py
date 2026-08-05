@@ -19,7 +19,7 @@ from . import metadata as meta_mod
 from . import scanner as scanner_mod
 from . import sync as sync_mod
 from .config import (CONFIG_PATH, ROOT_DIR, STATIC_DIR, load_config, resolve_rel,
-                     update_config_file)
+                     to_nfc, update_config_file)
 
 cfg = load_config()
 app = FastAPI(title="文献リファレンスツール")
@@ -238,7 +238,8 @@ def _build_filter(
     params: list = []
     joins = ""
 
-    q = q.strip()
+    # 検索語もNFCに揃える(macOSからコピーした語はNFDのことがある。索引側はNFC)
+    q = to_nfc(q).strip()
     if q:
         if _short_query_tokens(q):
             like = f"%{q}%"
