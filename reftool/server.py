@@ -179,8 +179,41 @@ def _host_allowed(host_header: str) -> bool:
         return False
 
 
+# 接続元の制限。このツールには認証が無いので、既定では「このPC自身」と
+# 「Tailscale経由」だけを通す。config.toml の [server] allow で変えられる。
+# ⚠️0.0.0.0 で待ち受ける以上、これが無いと同じLANの誰でも蔵書を開ける
+_TAILSCALE_NETS = (_ipaddress.ip_network("100.64.0.0/10"),
+                   _ipaddress.ip_network("fd7a:115c:a1e0::/48"))
+_LAN_NETS = (_ipaddress.ip_network("10.0.0.0/8"), _ipaddress.ip_network("172.16.0.0/12"),
+             _ipaddress.ip_network("192.168.0.0/16"), _ipaddress.ip_network("169.254.0.0/16"),
+             _ipaddress.ip_network("fc00::/7"), _ipaddress.ip_network("fe80::/10"))
+
+
+def _client_allowed(client_host: str | None) -> bool:
+    if cfg.allow == "any":
+        return True
+    if not client_host:
+        return False
+    try:
+        ip = _ipaddress.ip_address(client_host)
+    except ValueError:
+        return False
+    if ip.is_loopback:
+        return True
+    if any(ip in net for net in _TAILSCALE_NETS):
+        return True
+    if cfg.allow == "lan" and any(ip in net for net in _LAN_NETS):
+        return True
+    return False
+
+
 @app.middleware("http")
 async def _security(request: Request, call_next):
+    if not _client_allowed(request.client.host if request.client else None):
+        return JSONResponse(
+            {"detail": "このネットワークからは接続できません"
+                       "(config.toml の [server] allow で変更できます)"},
+            status_code=403)
     if not _host_allowed(request.headers.get("host", "")):
         return JSONResponse({"detail": "invalid host"}, status_code=403)
     if request.method in _UNSAFE_METHODS:

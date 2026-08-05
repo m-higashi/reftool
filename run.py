@@ -30,10 +30,19 @@ def main() -> None:
     print(f"  bind        : {cfg.host}:{cfg.port}")
     print(f"  このPCから  : http://127.0.0.1:{cfg.port}/")
     if cfg.host == "0.0.0.0":
+        # 接続元の制限(allow)によって、実際に開けるアドレスが変わる
         for ip in _local_ips():
-            print(f"  LAN/Tailscale: http://{ip}:{cfg.port}/")
+            tailscale = ip.startswith("100.")
+            usable = cfg.allow == "any" or tailscale or cfg.allow == "lan"
+            label = "Tailscale   " if tailscale else "LAN         "
+            mark = "" if usable else "  ← 現在は接続できません"
+            print(f"  {label}: http://{ip}:{cfg.port}/{mark}")
     else:
         print(f"  アクセスURL : http://{cfg.host}:{cfg.port}/")
+    note = {"tailscale": "このPCとTailscaleのみ(LANの他の端末からは開けません)",
+            "lan": "このPC・Tailscale・同じLANの端末",
+            "any": "制限なし(信頼できるネットワークでのみ)"}.get(cfg.allow, cfg.allow)
+    print(f"  接続を許す先: {note}")
     print("-" * 64)
     print("  停止するには Ctrl+C を押すか、このウィンドウを閉じてください。")
     print("=" * 64)

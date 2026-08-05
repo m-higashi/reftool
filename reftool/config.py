@@ -61,6 +61,7 @@ class CategoryRule:
 class Config:
     host: str = "0.0.0.0"
     port: int = 8585
+    allow: str = "tailscale"   # 接続を許す相手: tailscale / lan / any
     memo1_label: str = "メモ"
     memo2_label: str = "目次"
     categories: list[str] = field(default_factory=lambda: ["それ以外"])
@@ -170,6 +171,7 @@ def load_config() -> Config:
     return Config(
         host=server.get("host", "0.0.0.0"),
         port=int(server.get("port", 8585)),
+        allow=str(server.get("allow", "tailscale")).strip().lower(),
         memo1_label=labels.get("memo1", "メモ"),
         memo2_label=labels.get("memo2", "目次"),
         categories=cats.get("list", ["それ以外"]),
