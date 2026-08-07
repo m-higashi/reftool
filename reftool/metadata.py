@@ -179,6 +179,22 @@ def extract_pdf(path: Path, pages: int) -> dict:
         result["readable"] = False
         return result
 
+    # ⚠️パスワード付きPDFは、開くことはできても中身が読めない。ここで見ておかないと
+    #   「読めた(ok)がタイトルは空」になり、**読めていないのに読めたと言う**ことになる。
+    #   所有者パスワードだけの場合は空文字で解除できるので、それは試してから判断する。
+    try:
+        if getattr(reader, "is_encrypted", False):
+            try:
+                opened = reader.decrypt("")
+            except Exception:
+                opened = 0
+            if not opened:
+                result["readable"] = False
+                return result
+    except Exception:
+        result["readable"] = False
+        return result
+
     # 埋め込みメタデータ。柱(誌名＋巻号)が入っていることがあるので、その場合は雑誌名へ回す
     try:
         info = reader.metadata

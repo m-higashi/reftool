@@ -25,6 +25,16 @@ def _make_backup(dst: Path) -> None:
             target.execute("PRAGMA journal_mode=DELETE")
         finally:
             target.close()
+    except BaseException:
+        # ⚠️途中で失敗すると、中身が欠けたDBが backups/ に残る。それは
+        #   「他端末同期」の選択肢に並び、選ぶと壊れた記録を取り込んでしまう。
+        #   作りかけは必ず片づけてから、失敗を上へ伝える。
+        _drop_sidecars(dst)
+        try:
+            dst.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     finally:
         src.close()
     _drop_sidecars(dst)

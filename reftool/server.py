@@ -1142,7 +1142,11 @@ def do_backup():
         name = backup_mod.manual_backup(cfg)
         return {"ok": True, "file": name}
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(500, str(e))
+        # 原因を名指しする(OSの生のエラー番号だけでは、何をすればよいか分からない)
+        raise HTTPException(
+            500,
+            "バックアップを作れませんでした。_reftool の backups フォルダに書き込めるか、"
+            f"ディスクに空きがあるかを確認してください（{type(e).__name__}: {e}）")
 
 
 # ==========================================================================
