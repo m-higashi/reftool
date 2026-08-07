@@ -49,12 +49,28 @@ let SEARCH_TIMER = null;
 let CURSOR = -1;      // キーボード操作で選んでいる行(一覧内のindex)
 let DIRTY = null;     // 詳細パネルの未保存状態 {id, editors, isDirty(), save()}
 
+// 通信の共通入口。失敗は例外で返す(呼び出し側は必ず try/catch で受けること)。
+// ⚠️例外にした結果を「どこも見ていない」呼び出しがあると、失敗が画面に何も出ず
+//   利用者は成功したと思い込む。下の unhandledrejection が最後の網。
 async function api(path, opts) {
-  const r = await fetch(path, opts);
+  let r;
+  try {
+    r = await fetch(path, opts);
+  } catch (e) {
+    // 通信そのものが成立しない = サーバーが止まっている/PCがスリープした等。
+    // 原因を名指しする(「通信エラー」では利用者は何をすればよいか分からない)。
+    throw new Error("アプリに接続できません。start.bat のコンソールが閉じていないか確認してください");
+  }
   if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch {} throw new Error(m); }
   const ct = r.headers.get("content-type") || "";
   return ct.includes("json") ? r.json() : r.text();
 }
+
+// 受け損ねた失敗を必ず画面に出す(黙って何も起きない状態を作らない)
+window.addEventListener("unhandledrejection", (ev) => {
+  const m = (ev.reason && ev.reason.message) || String(ev.reason);
+  toast("失敗: " + m);
+});
 
 function toast(msg) {
   const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden");
@@ -104,7 +120,8 @@ async function init() {
 }
 
 async function loadConfig() {
-  CFG = await api("/api/config");
+  try { CFG = await api("/api/config"); }
+  catch (e) { toast("設定を読み込めませんでした: " + e.message); throw e; }
   const cat = $("#f-category");
   cat.length = 1;
   CFG.categories.forEach((c) => cat.add(new Option(c, c)));
@@ -379,7 +396,15 @@ async function openDetail(id) {
 
   // NEW解除 / 状態
   const badges = el("div", "field");
-  if (d.is_new) { const b = el("button", null, "NEWを解除"); b.onclick = async () => { await api(`/api/files/${id}/clear-new`, { method: "POST" }); toast("NEW解除"); refreshAfter(); }; badges.appendChild(b); }
+  if (d.is_new) {
+    const b = el("button", null, "NEWを解除");
+    b.onclick = async () => {
+      try { await api(`/api/files/${id}/clear-new`, { method: "POST" }); }
+      catch (e) { toast("NEWを解除できませんでした: " + e.message); return; }
+      toast("NEW解除"); await refreshAfter();
+    };
+    badges.appendChild(b);
+  }
   if (d.status === "missing") {
     badges.appendChild(el("span", "badge warn", "要対応: ファイルが見つかりません"));
     const del = el("button", "danger", "この欠落を削除…");
@@ -467,7 +492,13 @@ async function openDetail(id) {
     d.move_candidates.forEach((c) => {
       const row = el("div", "cand"); row.appendChild(el("span", null, c.rel_path));
       const b = el("button", "primary", "ここに紐付け");
-      b.onclick = async () => { await api(`/api/files/${id}/relink`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_id: c.id }) }); toast("再紐付けしました"); DIRTY = null; openDetail(c.id); refreshAfter(); };
+      b.onclick = async () => {
+        // 失敗しても画面だけ「紐付いた」ことにしない(移動先が既に別扱いになっている等)
+        b.disabled = true;
+        try { await api(`/api/files/${id}/relink`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_id: c.id }) }); }
+        catch (e) { b.disabled = false; toast("再紐付けできませんでした: " + e.message); return; }
+        toast("再紐付けしました"); DIRTY = null; openDetail(c.id); await refreshAfter();
+      };
       row.appendChild(b); p.appendChild(row);
     });
   }
@@ -548,7 +579,11 @@ async function copyCite(id, fmt) {
   catch (e) { toast("失敗: " + e.message); }
 }
 
-async function refreshAfter() { CFG = await api("/api/config"); renderStats(); await loadList(); }
+async function refreshAfter() {
+  try { CFG = await api("/api/config"); }
+  catch (e) { toast("画面を更新できませんでした: " + e.message); return; }
+  renderStats(); await loadList();
+}
 
 // ---- スキャン / 抽出 --------------------------------------------------
 async function startScan() {
@@ -600,9 +635,11 @@ function filterParams() {
 }
 
 async function clearFilteredNew() {
-  const r = await api("/api/clear-new?" + filterParams().toString(), { method: "POST" });
+  let r;
+  try { r = await api("/api/clear-new?" + filterParams().toString(), { method: "POST" }); }
+  catch (e) { toast("NEWを解除できませんでした: " + e.message); return; }
   toast(r.count > 0 ? `NEWを${r.count}件解除しました` : "対象のNEWはありませんでした");
-  refreshAfter();
+  await refreshAfter();
 }
 
 // 何件消えるかを先に数えてから実行させる(取り消せない操作)
