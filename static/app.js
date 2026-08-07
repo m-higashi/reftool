@@ -76,53 +76,25 @@ window.addEventListener("unhandledrejection", (ev) => {
 // ⚠️navigator.clipboard は「安全な文脈」(HTTPS か localhost)でしか存在しない。
 //   このアプリは http でIPに直接つなぐ運用なので、**このPC以外(スマホ・別端末)では
 //   丸ごと undefined になる**。判定と代替はここ1か所に集約し、各所で呼ぶこと。
-function _legacyCopy(text) {
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.setAttribute("readonly", "");
-  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
-  document.body.appendChild(ta);
-  let ok = false;
-  try {
-    if (/ipad|iphone|ipod/i.test(navigator.userAgent)) {
-      // iOS は select() だけでは選択されない。範囲を作って選ばせる
-      ta.contentEditable = "true";
-      const range = document.createRange();
-      range.selectNodeContents(ta);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-      ta.setSelectionRange(0, text.length);
-    } else {
-      ta.select();
-    }
-    ok = document.execCommand("copy");
-  } catch (e) { ok = false; }
-  document.body.removeChild(ta);
-  return ok;
-}
-
-// コピーできたときだけ true を返す。できなければ、その場で選べる形で画面に出す。
-// (成功していないのに「コピーしました」と出さないこと)
+// コピーできたと**確かめられたとき**だけ true を返す。
+// ⚠️旧方式(document.execCommand)は使わない。iOS Safari では成功したと答えながら
+//   実際には何もコピーしないことがあり、「コピーしました」が嘘になる(2026-08-08に実機で確認)。
+//   確かめようが無い手段で成功を名乗らないこと。取れなければ文字を出して選んでもらう。
 async function copyText(text, label) {
   if (navigator.clipboard && window.isSecureContext) {
     try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* 下へ */ }
   }
-  if (_legacyCopy(text)) return true;
-  const box = el("textarea", "copy-fallback");
-  box.value = text;
-  box.readOnly = true;
-  box.rows = Math.min(8, text.split("\n").length + 1);
+  const box = el("div", "copy-fallback", text);   // user-select:all なので1回の長押しで全部選べる
   showPlan({
-    title: label + "を自動でコピーできませんでした",
+    title: label + "はここから取ってください",
     lines: [
-      "この端末のブラウザは、暗号化されていない接続(http)からのコピーを許していません。",
-      "下の枠の文字を長押し(PCでは選んで Ctrl+C)してコピーしてください。",
+      "このブラウザは、暗号化されていない接続(http)からの自動コピーを許していません。"
+      + "このPCの画面(127.0.0.1)からなら、ボタンだけでコピーできます。",
+      "スマホ: 下の枠を長押し →「コピー」。PC: 枠をクリックすると全部選ばれるので Ctrl+C。",
     ],
     node: box,
     actions: [],
   });
-  setTimeout(() => { box.focus(); box.select(); }, 0);
   return false;
 }
 
