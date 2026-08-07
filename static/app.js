@@ -72,6 +72,60 @@ window.addEventListener("unhandledrejection", (ev) => {
   toast("失敗: " + m);
 });
 
+// ---- クリップボード ---------------------------------------------------
+// ⚠️navigator.clipboard は「安全な文脈」(HTTPS か localhost)でしか存在しない。
+//   このアプリは http でIPに直接つなぐ運用なので、**このPC以外(スマホ・別端末)では
+//   丸ごと undefined になる**。判定と代替はここ1か所に集約し、各所で呼ぶこと。
+function _legacyCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+  document.body.appendChild(ta);
+  let ok = false;
+  try {
+    if (/ipad|iphone|ipod/i.test(navigator.userAgent)) {
+      // iOS は select() だけでは選択されない。範囲を作って選ばせる
+      ta.contentEditable = "true";
+      const range = document.createRange();
+      range.selectNodeContents(ta);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      ta.setSelectionRange(0, text.length);
+    } else {
+      ta.select();
+    }
+    ok = document.execCommand("copy");
+  } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+// コピーできたときだけ true を返す。できなければ、その場で選べる形で画面に出す。
+// (成功していないのに「コピーしました」と出さないこと)
+async function copyText(text, label) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* 下へ */ }
+  }
+  if (_legacyCopy(text)) return true;
+  const box = el("textarea", "copy-fallback");
+  box.value = text;
+  box.readOnly = true;
+  box.rows = Math.min(8, text.split("\n").length + 1);
+  showPlan({
+    title: label + "を自動でコピーできませんでした",
+    lines: [
+      "この端末のブラウザは、暗号化されていない接続(http)からのコピーを許していません。",
+      "下の枠の文字を長押し(PCでは選んで Ctrl+C)してコピーしてください。",
+    ],
+    node: box,
+    actions: [],
+  });
+  setTimeout(() => { box.focus(); box.select(); }, 0);
+  return false;
+}
+
 function toast(msg) {
   const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden");
   clearTimeout(t._t); t._t = setTimeout(() => t.classList.add("hidden"), 2200);
@@ -79,7 +133,7 @@ function toast(msg) {
 
 // ---- 確認のしかた -----------------------------------------------------
 // confirm() は使わない。「何が起きるか」をページ内に出し、実行ボタンを押させる。
-function showPlan({ title, lines, actions }) {
+function showPlan({ title, lines, actions, node }) {
   const box = $("#plan");
   box.innerHTML = "";
   box.classList.remove("hidden");
@@ -89,6 +143,7 @@ function showPlan({ title, lines, actions }) {
     lines.forEach((t) => ul.appendChild(el("li", null, t)));
     box.appendChild(ul);
   }
+  if (node) box.appendChild(node);
   const btns = el("div", "row-btns");
   actions.forEach((a) => {
     const b = el("button", a.cls || null, a.label);
@@ -481,7 +536,8 @@ async function openDetail(id) {
     const ob = el("button", "primary", "ダウンロード"); a.appendChild(ob); openBtns.appendChild(a);
   }
   const copyPath = el("button", null, "パスをコピー");
-  copyPath.onclick = () => { navigator.clipboard.writeText(d.rel_path); toast("パスをコピーしました"); };
+  // ⚠️コピーできたときだけ「コピーしました」と出す(以前は結果を見ずに必ず出していた)
+  copyPath.onclick = async () => { if (await copyText(d.rel_path, "パス")) toast("パスをコピーしました"); };
   openBtns.appendChild(copyPath);
   p.appendChild(openBtns);
 
@@ -594,8 +650,11 @@ async function saveAndClose(id, editors, closeFn) {
 }
 
 async function copyCite(id, fmt) {
-  try { const r = await api(`/api/files/${id}/cite?fmt=${fmt}`); await navigator.clipboard.writeText(r.text); toast((fmt === "bibtex" ? "BibTeX" : "引用") + "をコピーしました"); }
-  catch (e) { toast("失敗: " + e.message); }
+  const label = fmt === "bibtex" ? "BibTeX" : "引用";
+  let r;
+  try { r = await api(`/api/files/${id}/cite?fmt=${fmt}`); }
+  catch (e) { toast(label + "を作れませんでした: " + e.message); return; }
+  if (await copyText(r.text, label)) toast(label + "をコピーしました");
 }
 
 // 保存・スキャン・同期のあとの画面更新。

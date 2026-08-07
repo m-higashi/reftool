@@ -278,6 +278,12 @@ tbody tr.cursor td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 13px;
 }
 .plan-box .plan-head { font-weight: 700; margin-bottom: 4px; }
+/* 自動コピーできない端末で、手で選んでコピーしてもらうための枠 */
+.copy-fallback {
+  width: 100%; margin: 6px 0; padding: 8px; box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px;
+  color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+}
 .plan-box ul { margin: 4px 0 8px; padding-left: 20px; line-height: 1.7; }
 .plan-box .row-btns { margin-bottom: 0; }
 
