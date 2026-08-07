@@ -122,10 +122,19 @@ async function init() {
 async function loadConfig() {
   try { CFG = await api("/api/config"); }
   catch (e) { toast("設定を読み込めませんでした: " + e.message); throw e; }
+  // ⚠️選択肢を作り直すので、いま選んでいる値を覚えて戻すこと。戻さないと、
+  //   保存や再スキャンのたびに絞り込みが黙って外れる。
+  //   選んでいた値が消えていたら、外したことを画面に出す(黙って全件に戻さない)。
+  const dropped = [];
   const cat = $("#f-category");
+  const catWas = cat.value;
   cat.length = 1;
   CFG.categories.forEach((c) => cat.add(new Option(c, c)));
+  cat.value = catWas;
+  if (cat.value !== catWas) { cat.value = ""; dropped.push(`カテゴリ「${catWas}」`); }
+
   const fol = $("#f-folder");
+  const folWas = fol.value;
   fol.length = 1;
   // 親フォルダの直下にサブフォルダが来るよう、パスを階層順にソートして並べる
   const allFolders = Array.from(new Set([...(CFG.top_folders || []), ...(CFG.folders || [])]));
@@ -135,6 +144,10 @@ async function loadConfig() {
     const label = "　".repeat(depth) + f;   // 全角スペースで階層をインデント(ラベルはフルパス)
     fol.add(new Option(label, f));
   });
+  fol.value = folWas;
+  if (fol.value !== folWas) { fol.value = ""; dropped.push(`フォルダ「${folWas}」`); }
+
+  if (dropped.length) toast(dropped.join("と") + "は無くなったので、絞り込みを外しました");
   renderStats();
 }
 
@@ -405,8 +418,30 @@ async function openDetail(id) {
     };
     badges.appendChild(b);
   }
+  if (d.status === "missing") badges.appendChild(el("span", "badge warn", "要対応: ファイルが見つかりません"));
+  if (d.status === "unreadable") badges.appendChild(el("span", "badge warn", "要対応: 読込不可"));
+  if (badges.children.length) p.appendChild(badges);
+
+  // 欠落したファイルへの対応。「引き継ぐ(再紐付け)」と「記録を消す」は
+  // 同じ場面で選ぶものなので、離さず隣に並べる。先に出すのは戻せる方。
   if (d.status === "missing") {
-    badges.appendChild(el("span", "badge warn", "要対応: ファイルが見つかりません"));
+    p.appendChild(el("div", "section-t", "移動された可能性(再紐付け)"));
+    if (d.move_candidates && d.move_candidates.length) {
+      d.move_candidates.forEach((c) => {
+        const row = el("div", "cand"); row.appendChild(el("span", null, c.rel_path));
+        const b = el("button", "primary", "ここに紐付け");
+        b.onclick = async () => {
+          // 失敗しても画面だけ「紐付いた」ことにしない(移動先が既に別扱いになっている等)
+          b.disabled = true;
+          try { await api(`/api/files/${id}/relink`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_id: c.id }) }); }
+          catch (e) { b.disabled = false; toast("再紐付けできませんでした: " + e.message); return; }
+          toast("再紐付けしました"); DIRTY = null; openDetail(c.id); await refreshAfter();
+        };
+        row.appendChild(b); p.appendChild(row);
+      });
+    } else {
+      p.appendChild(el("div", "muted", "同じ内容のファイルは見つかりませんでした。移動した先をまだ読み取っていない場合は、先に「再スキャン」を試してください。"));
+    }
     const del = el("button", "danger", "この欠落を削除…");
     del.onclick = () => {
       showPlan({
@@ -414,7 +449,7 @@ async function openDetail(id) {
         lines: [
           `対象: ${d.filename}`,
           "この記録に付けた正式名称・メモ・カテゴリも一緒に消えます(元に戻せません)。",
-          "ファイルを移動しただけの場合は、削除ではなく「移動された可能性(再紐付け)」を使ってください。",
+          "ファイルを移動しただけの場合は、削除ではなく上の「再紐付け」を使ってください。",
         ],
         actions: [{
           label: "削除する", cls: "danger",
@@ -425,10 +460,9 @@ async function openDetail(id) {
         }],
       });
     };
-    badges.appendChild(del);
+    const delRow = el("div", "row-btns"); delRow.appendChild(del);
+    p.appendChild(delRow);
   }
-  if (d.status === "unreadable") badges.appendChild(el("span", "badge warn", "要対応: 読込不可"));
-  if (badges.children.length) p.appendChild(badges);
 
   // 正式名称
   p.appendChild(editField("正式文献名(タイトル)", "title_user", d.title_user, d.title_auto, "input", editors));
@@ -486,22 +520,7 @@ async function openDetail(id) {
   p.appendChild(el("div", "section-t", "引用・補完"));
   p.appendChild(tools);
 
-  // 移動候補
-  if (d.move_candidates && d.move_candidates.length) {
-    p.appendChild(el("div", "section-t", "移動された可能性(再紐付け)"));
-    d.move_candidates.forEach((c) => {
-      const row = el("div", "cand"); row.appendChild(el("span", null, c.rel_path));
-      const b = el("button", "primary", "ここに紐付け");
-      b.onclick = async () => {
-        // 失敗しても画面だけ「紐付いた」ことにしない(移動先が既に別扱いになっている等)
-        b.disabled = true;
-        try { await api(`/api/files/${id}/relink`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_id: c.id }) }); }
-        catch (e) { b.disabled = false; toast("再紐付けできませんでした: " + e.message); return; }
-        toast("再紐付けしました"); DIRTY = null; openDetail(c.id); await refreshAfter();
-      };
-      row.appendChild(b); p.appendChild(row);
-    });
-  }
+  // ※移動候補(再紐付け)は、欠落の対応欄として詳細の先頭へ移した。
 
   // 重複
   if (d.duplicates && d.duplicates.length) {
@@ -579,10 +598,14 @@ async function copyCite(id, fmt) {
   catch (e) { toast("失敗: " + e.message); }
 }
 
+// 保存・スキャン・同期のあとの画面更新。
+// ⚠️CFG を取り直すだけでは足りない。カテゴリとフォルダの選択肢は loadConfig が
+//   作っているので、ここを通さないと「設定でカテゴリを増やしても、再スキャンで
+//   フォルダが増えても、再読み込みするまで選択肢に出ない」ことになる。
 async function refreshAfter() {
-  try { CFG = await api("/api/config"); }
-  catch (e) { toast("画面を更新できませんでした: " + e.message); return; }
-  renderStats(); await loadList();
+  try { await loadConfig(); }
+  catch (e) { return; }   // 文言は loadConfig 側で出している
+  await loadList();
 }
 
 // ---- スキャン / 抽出 --------------------------------------------------
@@ -782,7 +805,10 @@ async function saveSettings() {
   try { r = await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); }
   catch (e) { toast("保存できません: " + e.message); return; }
   closeSettings();
-  toast("設定を保存しました(控え: " + r.backup + ")");
+  const detailOpen = !$("#detail").classList.contains("hidden");
+  await refreshAfter();   // カテゴリの選択肢はここで作り直される(再読み込みは不要)
+  toast("設定を保存しました(控え: " + r.backup + ")"
+        + (detailOpen ? "。開いている詳細は閉じて開き直すと新しい設定になります" : ""));
   if (r.orphans && r.orphans.length) {
     showPlan({
       title: "一覧から外したカテゴリが、まだ使われています",
@@ -793,7 +819,6 @@ async function saveSettings() {
       actions: [],
     });
   }
-  await refreshAfter();
 }
 
 // ---- 他端末同期 -------------------------------------------------------
