@@ -1160,8 +1160,6 @@ def _run_sync(backup_name: str, apply: bool) -> None:
 
 
 def _start_sync(backup: str, apply: bool):
-    if sync_state.snapshot()["running"]:
-        return {"ok": False, "reason": "同期処理が既に実行中です"}
     if scan_state.running:
         return {"ok": False, "reason": "スキャン実行中は同期できません"}
     with _extract_lock:
@@ -1171,7 +1169,27 @@ def _start_sync(backup: str, apply: bool):
         sync_mod.resolve_backup(backup)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    threading.Thread(target=_run_sync, args=(backup, apply), daemon=True).start()
+    # ⚠️スキャン・メタ抽出と同じで、running をスレッドの中で立ててはいけない。
+    #   開始直後の問い合わせに「動いていない」と答えるうえ、plan/result が
+    #   前回のまま残るので、画面が**前回の計画**を今回のものとして表示し、
+    #   その数字を見たまま「実行」を押せてしまう(2026-08-08に実測)。
+    with sync_state.lock:
+        if sync_state.running:
+            return {"ok": False, "reason": "同期処理が既に実行中です"}
+        sync_state.running = True
+        sync_state.mode = "apply" if apply else "preview"
+        sync_state.backup = backup
+        sync_state.phase = "reading"
+        sync_state.plan = None
+        sync_state.result = None
+        sync_state.error = None
+    try:
+        threading.Thread(target=_run_sync, args=(backup, apply), daemon=True).start()
+    except Exception:
+        with sync_state.lock:
+            sync_state.running = False
+            sync_state.phase = "idle"
+        raise
     return {"ok": True}
 
 

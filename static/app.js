@@ -916,10 +916,21 @@ function renderSyncResult(s) {
   };
   if (s.mode === "apply" && s.result) {
     const r = s.result;
+    // ⚠️移動に失敗したものがあるのに「✅完了」と出さない。
+    //   下にエラー一覧を出していても、見出しが成功だと利用者は読まない。
+    const troubled = (r.move_errors && r.move_errors.length) || (r.stage_leftovers && r.stage_leftovers.length);
     pane.appendChild(el("div", "sync-summary",
-      `✅ 同期完了: メタ情報${r.imported}件を取り込み / ファイル移動${r.moved}件 / 空フォルダ削除${r.pruned_dirs}件`));
+      (troubled ? "⚠ 同期は終わりましたが、一部を動かせませんでした: " : "✅ 同期完了: ")
+      + `メタ情報${r.imported}件を取り込み / ファイル移動${r.moved}件 / 空フォルダ削除${r.pruned_dirs}件`));
     if (plan.missing_total) pane.appendChild(el("div", "muted", `不足${plan.missing_total}件は「欠落」として登録されています。メイン端末からファイルをコピーして再スキャンしてください。`));
     list("移動エラー", r.move_errors, null, (x) => `${x.path}: ${x.error}`);
+    if (r.stage_leftovers && r.stage_leftovers.length) {
+      pane.appendChild(el("div", "muted",
+        `⚠ 次のファイルが一時退避フォルダ「${r.stage_dir}」に残りました。`
+        + "そのファイルを開いているアプリを閉じてから、元の場所へ手で戻し、再スキャンしてください。"
+        + "この場所はスキャンの対象外なので、放置すると見つかりません。"));
+      list("退避フォルダに残ったファイル", r.stage_leftovers, null, (x) => x);
+    }
   } else {
     pane.appendChild(el("div", "sync-summary",
       `記録${plan.backup_total}件: 配置一致 ${plan.ok} / 移動予定 ${plan.moves_total} / 不足 ${plan.missing_total} / この端末のみ ${plan.extra_total}` +

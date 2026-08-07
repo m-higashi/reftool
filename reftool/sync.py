@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import threading
@@ -266,9 +267,34 @@ def _import_db(conn, backup_path: Path) -> int:
         conn.execute("DETACH DATABASE bkp")
 
 
-def _apply_moves(moves: list[dict], state: SyncState) -> tuple[int, list[dict]]:
+def _move_file(src: Path, dst: Path) -> None:
+    """ファイルを1つ動かす。移動先が既にある場合は上書きしない。
+
+    ⚠️shutil.move を直接使わないこと。失敗すると「コピーしてから元を消す」に
+      切り替わるため、元を消せないとき(Windowsで開かれている等)に
+      **コピーだけが残ってファイルが二重になる**(2026-08-08に実測)。
+      まず名前の付け替えで試し、別ディスクのときだけコピーに頼る。
+    """
+    if dst.exists():
+        raise OSError("移動先に別のファイルが存在します")
+    try:
+        os.rename(src, dst)          # 同じディスク内。中身は読まないので速く、途中状態も作らない
+    except OSError as e:
+        # 別ディスクをまたぐときだけ、コピー＋削除に頼る
+        if getattr(e, "winerror", None) == 17 or e.errno == errno.EXDEV:
+            shutil.move(str(src), str(dst))
+        else:
+            raise
+
+
+def _apply_moves(moves: list[dict], state: SyncState) -> tuple[int, list[dict], list[str]]:
     """2相移動: 全移動元をいったんステージへ退避してから最終位置へ置く。
-    (入替・玉突き移動でも安全。失敗したファイルは元の場所へ戻す。)"""
+    (入替・玉突き移動でも安全。失敗したファイルは元の場所へ戻す。)
+
+    戻り値の3つめは、退避フォルダに残ってしまったファイル。
+    ⚠️黙って残すと、スキャン対象外の場所にファイルが隠れたまま「欠落」に見える。
+      必ず報告して、利用者が取り戻せるようにすること。
+    """
     STAGE_DIR.mkdir(exist_ok=True)
     state.set_phase("moving", total=len(moves) * 2)
     staged: list[tuple[Path, dict]] = []
@@ -278,7 +304,7 @@ def _apply_moves(moves: list[dict], state: SyncState) -> tuple[int, list[dict]]:
         src = ROOT_DIR / m["src"]
         tmp = STAGE_DIR / f"{i:05d}__{PurePosixPath(m['src']).name}"
         try:
-            shutil.move(str(src), str(tmp))
+            _move_file(src, tmp)
             staged.append((tmp, m))
         except OSError as e:
             errors.append({"path": m["src"], "error": str(e)})
@@ -288,24 +314,26 @@ def _apply_moves(moves: list[dict], state: SyncState) -> tuple[int, list[dict]]:
     for tmp, m in staged:
         dst = ROOT_DIR / m["dst"]
         try:
-            if dst.exists():
-                raise OSError("移動先に別のファイルが存在します")
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(tmp), str(dst))
+            _move_file(tmp, dst)
             moved += 1
         except OSError as e:
             errors.append({"path": m["dst"], "error": str(e)})
             try:  # 元の場所へ戻す(ファイルを失わない)
-                shutil.move(str(tmp), str(ROOT_DIR / m["src"]))
+                _move_file(tmp, ROOT_DIR / m["src"])
             except OSError as e2:
-                errors.append({"path": str(tmp), "error": f"退避先に残留: {e2}"})
+                errors.append({"path": m["src"], "error": f"元の場所へ戻せませんでした: {e2}"})
         state.step()
 
-    try:
-        STAGE_DIR.rmdir()
-    except OSError:
-        pass
-    return moved, errors
+    # 戻しきれなかったものを数える。空でなければ rmdir は失敗するので、
+    # 「消せたかどうか」ではなく中身を見て判断する。
+    leftovers = sorted(p.name for p in STAGE_DIR.iterdir()) if STAGE_DIR.exists() else []
+    if not leftovers:
+        try:
+            STAGE_DIR.rmdir()
+        except OSError:
+            pass
+    return moved, errors, leftovers
 
 
 def _prune_empty_dirs() -> int:
@@ -365,7 +393,7 @@ def run(conn, cfg: Config, backup_name: str, apply: bool,
             else:
                 imported = _import_db(conn, path)
 
-            moved, move_errors = _apply_moves(plan["moves"], state)
+            moved, move_errors, leftovers = _apply_moves(plan["moves"], state)
             pruned = _prune_empty_dirs()
 
             state.set_phase("scanning")
@@ -377,6 +405,10 @@ def run(conn, cfg: Config, backup_name: str, apply: bool,
                     "moved": moved,
                     "move_errors": move_errors,
                     "pruned_dirs": pruned,
+                    # 退避フォルダに残ってしまったファイル(スキャン対象外の場所なので
+                    # 報告しないと、利用者からは「消えた」ようにしか見えない)
+                    "stage_leftovers": leftovers,
+                    "stage_dir": str(STAGE_DIR.relative_to(ROOT_DIR)) if leftovers else None,
                 }
 
         with state.lock:
