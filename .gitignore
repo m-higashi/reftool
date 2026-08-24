@@ -14,9 +14,9 @@ GitHub用/
 claude引き継ぎ/
 MakeMyBackup/
 CLAUDE.md
-make_mac_zip.py
-make_repo.py
-make_social.py
+make_*.py
+scripts/
+更新内容.txt
 
 # OS が置いていくもの
 .DS_Store
