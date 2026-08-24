@@ -105,8 +105,14 @@ function toast(msg) {
 
 // ---- 確認のしかた -----------------------------------------------------
 // confirm() は使わない。「何が起きるか」をページ内に出し、実行ボタンを押させる。
-function showPlan({ title, lines, actions, node }) {
-  const box = $("#plan");
+// ⚠️host を指定できるのは、モーダルの中から呼ぶときに既定の #plan だと
+//   モーダルの背後(z-index の下)に描かれ、いったんモーダルを閉じないと
+//   実行ボタンに触れないため。確認は必ず、押したボタンと同じ面に出すこと。
+let PLAN_HOST = null;
+function showPlan({ title, lines, actions, node, host }) {
+  const box = $(host || "#plan");
+  if (PLAN_HOST && PLAN_HOST !== box) hidePlan();   // 前の確認を出しっぱなしにしない
+  PLAN_HOST = box;
   box.innerHTML = "";
   box.classList.remove("hidden");
   box.appendChild(el("div", "plan-head", title));
@@ -133,7 +139,14 @@ function showPlan({ title, lines, actions, node }) {
   box.appendChild(btns);
   box.scrollIntoView({ block: "nearest" });
 }
-function hidePlan() { const b = $("#plan"); b.classList.add("hidden"); b.innerHTML = ""; }
+function hidePlan() {
+  const b = PLAN_HOST || $("#plan");
+  b.classList.add("hidden"); b.innerHTML = "";
+  PLAN_HOST = null;
+}
+function planIsOpen(host) {
+  return PLAN_HOST === $(host) && !PLAN_HOST.classList.contains("hidden");
+}
 
 // ---- 初期化 -----------------------------------------------------------
 async function init() {
@@ -201,7 +214,10 @@ function bindEvents() {
   $("#btn-sync").addEventListener("click", () => { closeMaint(); openSyncModal(); });
   $("#btn-settings").addEventListener("click", () => { closeMaint(); openSettings(); });
   $("#btn-maint").addEventListener("click", toggleMaint);
-  $("#sync-close").addEventListener("click", () => $("#sync-modal").classList.add("hidden"));
+  $("#sync-close").addEventListener("click", () => {
+    if (planIsOpen("#sync-confirm")) hidePlan();
+    $("#sync-modal").classList.add("hidden");
+  });
   $("#sync-preview").addEventListener("click", () => startSync(false));
   $("#sync-apply").addEventListener("click", syncApply);
   $("#btn-theme").addEventListener("click", cycleTheme);
@@ -235,7 +251,11 @@ function isTyping(t) {
 function onKeyDown(ev) {
   if (ev.key === "Escape") {
     if (!$("#set-modal").classList.contains("hidden")) { closeSettings(); return; }
-    if (!$("#sync-modal").classList.contains("hidden")) { $("#sync-modal").classList.add("hidden"); return; }
+    if (!$("#sync-modal").classList.contains("hidden")) {
+      // 確認を出している最中の Escape は「やめる」。モーダルごと閉じない
+      if (planIsOpen("#sync-confirm")) { hidePlan(); return; }
+      $("#sync-modal").classList.add("hidden"); return;
+    }
     if (!$("#plan").classList.contains("hidden")) { hidePlan(); return; }
     // 詳細パネル。未保存があるときは捨てずに選ばせる(閉じるボタンと同じ扱い)
     if (!$("#detail").classList.contains("hidden") && DIRTY && DIRTY.close) { DIRTY.close(); return; }
@@ -856,6 +876,7 @@ async function saveSettings() {
 async function openSyncModal() {
   const modal = $("#sync-modal"); modal.classList.remove("hidden");
   $("#sync-plan").innerHTML = "";
+  if (planIsOpen("#sync-confirm")) hidePlan();
   $("#sync-apply").disabled = true;
   const box = $("#sync-backups"); box.textContent = "読み込み中…";
   let r;
@@ -869,7 +890,10 @@ async function openSyncModal() {
     const lab = el("label", "sync-item");
     const rad = document.createElement("input");
     rad.type = "radio"; rad.name = "sync-backup"; rad.value = b.name; if (i === 0) rad.checked = true;
-    rad.addEventListener("change", () => { $("#sync-apply").disabled = true; $("#sync-plan").innerHTML = ""; });
+    rad.addEventListener("change", () => {
+      $("#sync-apply").disabled = true; $("#sync-plan").innerHTML = "";
+      if (planIsOpen("#sync-confirm")) hidePlan();   // 別の記録を選んだら確認もやり直し
+    });
     lab.appendChild(rad);
     lab.appendChild(el("span", null, b.name));
     lab.appendChild(el("span", "muted", `${(b.size / 1024 / 1024).toFixed(1)}MB / ${b.mtime.replace("T", " ")}`));
@@ -893,6 +917,7 @@ async function syncApply() {
       "上のプレビューに出ている「移動予定」がそのまま実行されます。",
     ],
     actions: [{ label: "同期を実行する", cls: "primary", run: async () => { await startSync(true); } }],
+    host: "#sync-confirm",
   });
 }
 
