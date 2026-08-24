@@ -232,14 +232,25 @@ async def _security(request: Request, call_next):
 #   JSONとして読もうとして二重に失敗する(利用者には原因が何も出ない)。
 #   ⚠️ここで client error に化けさせてよいのは「そう断言できるもの」だけ。
 #     内部の不具合を400と言い張るのは、利用者への嘘になる。
+#   ⚠️「そう断言できるもの」は下のように型ごとに登録すること。Exception のハンドラに
+#     まとめて isinstance で振り分けると、Starlette は Exception のハンドラだけを
+#     最外周(ServerErrorMiddleware)に置き、応答を返した後で必ず例外を投げ直す。
+#     結果、400として正しく処理した要求でも 200行のトレースバックがコンソールに出る。
+#     型ごとのハンドラは内側(ExceptionMiddleware)で処理され、投げ直されない。
 # ==========================================================================
+@app.exception_handler(OverflowError)
+async def _value_too_large(request: Request, exc: OverflowError):
+    # SQLite の INTEGER に収まらない値(64bit超のIDなど)
+    return JSONResponse({"detail": "指定された値が大きすぎます"}, status_code=400)
+
+
+@app.exception_handler(sqlite3.InterfaceError)
+async def _unbindable_value(request: Request, exc: sqlite3.InterfaceError):
+    return JSONResponse({"detail": "保存できない種類の値が含まれています"}, status_code=400)
+
+
 @app.exception_handler(Exception)
 async def _unhandled_exception(request: Request, exc: Exception):
-    if isinstance(exc, OverflowError):
-        # SQLite の INTEGER に収まらない値(64bit超のIDなど)
-        return JSONResponse({"detail": "指定された値が大きすぎます"}, status_code=400)
-    if isinstance(exc, sqlite3.InterfaceError):
-        return JSONResponse({"detail": "保存できない種類の値が含まれています"}, status_code=400)
     print(f"[error] {request.method} {request.url.path}: {type(exc).__name__}: {exc}")
     return JSONResponse(
         {"detail": f"サーバー内部でエラーが発生しました({type(exc).__name__})。"
