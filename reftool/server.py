@@ -395,7 +395,9 @@ def list_files(
 
         order = {
             "title": f"{db.EFF_TITLE} COLLATE NOCASE",
-            "new": "is_new DESC, last_seen_at DESC",
+            # 新着順 = DBに登録した日時(初めてスキャンで見つけた時刻)の新しい順。
+            # ⚠️last_seen_at は再スキャンのたびに全件が同じ時刻になるので使えない(2026-09-17修正)
+            "new": "files.first_seen_at DESC, files.folder, files.filename",
             "folder": "files.folder, files.filename",
         }.get(sort, "files.folder, files.filename")
         # 重複だけを見ているときは、同じ内容のものが必ず隣り合うようにする
